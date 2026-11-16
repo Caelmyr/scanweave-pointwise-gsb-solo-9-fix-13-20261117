@@ -21,10 +21,10 @@ def prepare(project, assets, aligned=True, progress=None, cancelled=None):
         if cancelled and cancelled():
             raise InterruptedError('在照片准备阶段取消')
         image = assets.field(frame['asset'])
-        if aligned:
-            report = {'enabled': project['settings']['calibration']['enabled'], 'deferred': True}
-        else:
-            image, report = apply_calibration(image, project['settings']['calibration'], assets.field)
+        # 暗场/平场描述的是传感器原生位置的固定模式，必须在任何缩放、
+        # 镜头校正或几何变换之前、按素材原始分辨率应用，否则平移/配准后
+        # 校正模板与条纹错位，压下去的固定条纹会重新出现，边界还会产生暗带。
+        image, report = apply_calibration(image, project['settings']['calibration'], assets.field)
         image, lens_valid = correct(image, project['settings']['lens'])
         image, validity = letterbox(image, width, height)
         lens_valid, _ = letterbox(lens_valid, width, height)
@@ -39,7 +39,6 @@ def prepare(project, assets, aligned=True, progress=None, cancelled=None):
             image = warp(image, transform, (width, height))
             validity = warp(validity, transform, (width, height))
             mask = warp(mask, transform, (width, height))
-            image, report = apply_calibration(image, project['settings']['calibration'], assets.field)
         images.append(image)
         geometric_validities.append(np.clip(validity, 0, 1))
         validities.append(np.clip(validity * mask, 0, 1) * float(frame['weight'] > 0))
